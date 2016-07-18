@@ -7,6 +7,7 @@ import (
 	"github.com/ardanlabs/kit/db"
 	"github.com/ardanlabs/kit/db/mongo"
 	"github.com/ardanlabs/kit/log"
+	"github.com/cayleygraph/cayley"
 
 	gc "github.com/patrickmn/go-cache"
 	mgo "gopkg.in/mgo.v2"
@@ -104,7 +105,7 @@ func Create(context interface{}, db *db.DB, t string, v int, d ItemData) (Item, 
 }
 
 // Items are trasparently created or updated depending on thier existence
-func Upsert(context interface{}, db *db.DB, item *Item) error {
+func Upsert(context interface{}, db *db.DB, item *Item, store *cayley.Handle) error {
 
 	// validate our item
 	if err := item.Validate(); err != nil {
@@ -136,6 +137,11 @@ func Upsert(context interface{}, db *db.DB, item *Item) error {
 		return err
 	}
 
+	// Also store the graph nodes associated with the item
+	if err := graphItem(store, item); err != nil {
+		return err
+	}
+
 	if new {
 		// historical code
 	}
@@ -146,6 +152,33 @@ func Upsert(context interface{}, db *db.DB, item *Item) error {
 		cache.Flush()
 	}
 
+	return nil
+}
+
+// graphNodes creates the Cayley graph quads to track item relationships.
+func graphItem(store *cayley.Handle, item *Item) error {
+
+	t := cayley.NewTransaction()
+
+	// Create the item node.
+	t.AddQuad(cayley.Quad(item.Id.Hex(), "is_type", item.Type, ""))
+
+	// Create any necessary relationships.
+	for _, rel := range item.Rels {
+		switch rel.Name {
+		case "context":
+			t.AddQuad(cayley.Quad(item.Id.Hex(), "contextualized_with", rel.Id, ""))
+		case "author":
+			t.AddQuad(cayley.Quad(item.Id.Hex(), "authored_by", rel.Id, ""))
+		case "parent":
+			t.AddQuad(cayley.Quad(item.Id.Hex(), "parented_by", rel.Id, ""))
+		}
+	}
+
+	// Apply the transaction.
+	if err := store.ApplyTransaction(t); err != nil {
+		return err
+	}
 	return nil
 }
 

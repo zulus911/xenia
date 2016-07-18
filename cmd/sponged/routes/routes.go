@@ -6,6 +6,8 @@ import (
 	"time"
 
 	anvil "github.com/anvilresearch/go-anvil"
+	"github.com/cayleygraph/cayley/graph"
+	_ "github.com/cayleygraph/cayley/graph/mongo"
 
 	"github.com/ardanlabs/kit/cfg"
 	"github.com/ardanlabs/kit/db"
@@ -54,6 +56,14 @@ func init() {
 		}
 	}
 
+	// Initialize Cayley.
+	if _, err := cfg.String(cfgMongoHost); err == nil {
+		if err := graph.InitQuadStore("mongo", cfg.MustString(cfgMongoHost), nil); err != nil {
+			log.Error("startup", "Init", err, "Initializing Cayley")
+			os.Exit(1)
+		}
+	}
+
 	// Initialize the item / relationship system
 	err := item.Initialize()
 	if err != nil {
@@ -80,7 +90,7 @@ func API(testing ...bool) http.Handler {
 		}
 	}
 
-	a := app.New(midware.Mongo, midware.Auth)
+	a := app.New(midware.Mongo, midware.Cayley, midware.Auth)
 	a.Ctx["anvil"] = anv
 
 	log.Dev("startup", "Init", "Initalizing routes")

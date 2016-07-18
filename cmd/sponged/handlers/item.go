@@ -7,6 +7,7 @@ import (
 
 	"github.com/ardanlabs/kit/db"
 	"github.com/ardanlabs/kit/web/app"
+	"github.com/cayleygraph/cayley"
 
 	"github.com/coralproject/xenia/internal/item"
 )
@@ -61,7 +62,7 @@ func (itemHandle) Upsert(c *app.Context) error {
 	}
 
 	// upsert the item
-	err = item.Upsert(c, c.Ctx["DB"].(*db.DB), &i)
+	err = item.Upsert(c, c.Ctx["DB"].(*db.DB), &i, c.Ctx["Cayley"].(*cayley.Handle))
 	if err != nil {
 		c.Respond(err, http.StatusInternalServerError)
 		return nil
