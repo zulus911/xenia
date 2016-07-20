@@ -5,14 +5,13 @@ import (
 	"github.com/ardanlabs/kit/log"
 	"github.com/ardanlabs/kit/web/app"
 	"github.com/cayleygraph/cayley"
-	"github.com/cayleygraph/cayley/graph"
 
 	// mongo is needed to utilize mongoDB as the backend store for cayley.
 	_ "github.com/cayleygraph/cayley/graph/mongo"
 )
 
 // cfgMongoDB config environmental variables.
-const cfgMongoHost = "MONGO_Host"
+const cfgMongoHost = "MONGO_HOST"
 
 // Cayley handles session management.
 func Cayley(h app.Handler) app.Handler {
@@ -20,11 +19,9 @@ func Cayley(h app.Handler) app.Handler {
 	// Check if mongodb is configured.
 	mongoHost, err := cfg.String(cfgMongoHost)
 	if err != nil {
-		if err := graph.InitQuadStore("mongo", mongoHost, nil); err != nil {
-			return func(c *app.Context) error {
-				log.Dev(c.SessionID, "Cayley", "******> Cayley Not Configured")
-				return h(c)
-			}
+		return func(c *app.Context) error {
+			log.Dev(c.SessionID, "Cayley", "******> Cayley Not Configured")
+			return h(c)
 		}
 	}
 
