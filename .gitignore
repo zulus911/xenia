@@ -32,3 +32,5 @@ cmd/xeniad/xeniad
 
 # Local development Config files
 config/gaba.cfg
+
+.DS_Store
