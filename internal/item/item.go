@@ -8,6 +8,7 @@ import (
 	"github.com/ardanlabs/kit/db/mongo"
 	"github.com/ardanlabs/kit/log"
 	"github.com/cayleygraph/cayley"
+	"github.com/cayleygraph/cayley/quad"
 
 	gc "github.com/patrickmn/go-cache"
 	mgo "gopkg.in/mgo.v2"
@@ -161,17 +162,17 @@ func graphItem(store *cayley.Handle, item *Item) error {
 	t := cayley.NewTransaction()
 
 	// Create the item node.
-	t.AddQuad(cayley.Quad(item.Id.Hex(), "is_type", item.Type, ""))
+	t.AddQuad(quad.Make(item.Id.Hex(), "is_type", item.Type, ""))
 
 	// Create any necessary relationships.
 	for _, rel := range item.Rels {
 		switch rel.Name {
 		case "context":
-			t.AddQuad(cayley.Quad(item.Id.Hex(), "contextualized_with", rel.Id, ""))
+			t.AddQuad(quad.Make(item.Id.Hex(), "contextualized_with", rel.Id, ""))
 		case "author":
-			t.AddQuad(cayley.Quad(item.Id.Hex(), "authored_by", rel.Id, ""))
+			t.AddQuad(quad.Make(rel.Id, "authored", item.Id.Hex(), ""))
 		case "parent":
-			t.AddQuad(cayley.Quad(item.Id.Hex(), "parented_by", rel.Id, ""))
+			t.AddQuad(quad.Make(item.Id.Hex(), "parented_by", rel.Id, ""))
 		}
 	}
 
