@@ -12,13 +12,14 @@ package handlers
 
 */
 
+// TO DO: ON BEHAVIOR PACKAGE, we neeed to migrate that package from Pillar to Xenia
+
 import (
 	"encoding/json"
 	"net/http"
 
 	"github.com/ardanlabs/kit/db"
 	"github.com/ardanlabs/kit/web/app"
-	"github.com/coralproject/xenia/internal/ask"
 	"github.com/coralproject/xenia/internal/form"
 )
 
@@ -30,15 +31,23 @@ var Form formHandle
 
 //==============================================================================
 
-func (formHandle) CreateUpdateForm(c *app.Context) error {
-
+func unmarshalForm(c *app.Context) (*form.Form, error) {
 	var f *form.Form
 	err := json.NewDecoder(c.Request.Body).Decode(&f)
+	if err != nil {
+		return nil, err
+	}
+	return f, nil
+}
+
+func (formHandle) CreateUpdateForm(c *app.Context) error {
+
+	f, err := unmarshalForm(c)
 	if err != nil {
 		return err
 	}
 
-	rf, err := ask.UpsertForm(c.SessionID, c.Ctx["DB"].(*db.DB), f)
+	rf, err := form.Upsert(c.SessionID, c.Ctx["DB"].(*db.DB), f)
 	if err != nil {
 		return err
 	}

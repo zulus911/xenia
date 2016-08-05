@@ -1,14 +1,29 @@
-package form
+package submission
 
 import (
 	"fmt"
 	"time"
 
 	"github.com/ardanlabs/kit/db"
+	"github.com/coralproject/xenia/internal/form"
 
+	"gopkg.in/bluesuncorp/validator.v8"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
+
+//Various Constants
+const (
+	// Collections
+	FormSubmissions string = "form_submissions"
+)
+
+// validate is used to perform model field validation.
+var validate *validator.Validate
+
+func init() {
+	validate = validator.New(&validator.Config{TagName: "validate"})
+}
 
 // Submission implements the Model interface
 type Submission struct {
@@ -105,23 +120,43 @@ func (object Submission) SetAnswersToSubmission(fsi *SubmissionInput) {
 
 //=========================================================================================================
 
-func GetForm(context interface{}, db *db.DB, fID bson.ObjectId) (*Form, error) {
+func BuildSubmission(object *form.Form) (Submission, error) {
 
-	var f *Form
+	// cook up a new form submission
+	fs := Submission{}
 
-	funct := func(c *mgo.Collection) error {
-		return c.FindId(fID).One(&f)
+	// Get a new ID for the submission
+	fs.ID = bson.NewObjectId()
+
+	// grab the header info from the form
+	fs.FormID = object.ID
+	fs.Header = object.Header
+	fs.Footer = object.Footer
+
+	// for each widget in each step
+	for _, s := range object.Steps {
+		for _, w := range s.Widgets {
+
+			// make an answer
+			a := SubmissionAnswer{}
+
+			// get the question/title and props for posterity
+			a.WidgetID = w.ID
+			a.Identity = w.Identity
+			a.Question = w.Title
+			a.Props = w.Props
+
+			// and slam them into the answers
+			fs.Answers = append(fs.Answers, a)
+		}
 	}
 
-	if err := db.ExecuteMGO(context, Forms, funct); err != nil {
-		return nil, err
-	}
-
-	return f, nil
+	// toss that fresh submission back
+	return fs, nil
 }
 
 // Upsert create or update an existing form submission
-func UpsertSubmission(context interface{}, db *db.DB, f *SubmissionInput) (*Submission, error) {
+func Upsert(context interface{}, db *db.DB, f *SubmissionInput) (*Submission, error) {
 
 	// we need to be sure that the submission input is a valid struct
 	if err := f.Validate(); err != nil {
@@ -132,13 +167,13 @@ func UpsertSubmission(context interface{}, db *db.DB, f *SubmissionInput) (*Subm
 	fID := bson.ObjectIdHex(f.FormID)
 
 	// get the form in question
-	form, err := GetForm(context, db, fID)
+	form, err := form.GetForm(context, db, fID)
 	if err != nil {
 		return nil, err
 	}
 
-	// build a form submission from the input
-	fs, err := form.BuildSubmission() // buildSubmissionFromForm(f)
+	// build a form submission from the form
+	fs, err := BuildSubmission(form)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +186,7 @@ func UpsertSubmission(context interface{}, db *db.DB, f *SubmissionInput) (*Subm
 	fs.DateUpdated = time.Now()
 
 	// set the number
-	n, err := form.getSubmissionCountByForm(context, db)
+	n, err := form.CountSubmissions(context, db)
 	if err != nil {
 		return nil, err
 	}
@@ -166,11 +201,11 @@ func UpsertSubmission(context interface{}, db *db.DB, f *SubmissionInput) (*Subm
 		return nil, err
 	}
 
-	// // update the stats using the Form Context
-	// err = updateStats(fc)
-	// if err != nil {
-	// 	return nil, err
-	// }
+	// update the stats using the Form Context
+	err = form.UpdateStats(context, db)
+	if err != nil {
+		return nil, err
+	}
 
 	return &fs, nil
 

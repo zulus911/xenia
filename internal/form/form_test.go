@@ -1,12 +1,11 @@
-package ask_test
+package form_test
 
 import (
 	"github.com/ardanlabs/kit/db"
 	"github.com/ardanlabs/kit/tests"
 
-	"github.com/coralproject/xenia/internal/ask"
-	"github.com/coralproject/xenia/internal/ask/afix"
 	"github.com/coralproject/xenia/internal/form"
+	"github.com/coralproject/xenia/internal/form/ffix"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -20,12 +19,12 @@ var _ = Describe("Create", func() {
 
 	BeforeEach(func() {
 		// get a database from the fixtures
-		db = afix.SetTestDatabase()
+		db = ffix.SetTestDatabase()
 	})
 
 	AfterEach(func() {
 		// empty database
-		afix.TearTestDatabase(db)
+		ffix.TearTestDatabase(db)
 	})
 
 	Describe("a form", func() {
@@ -41,11 +40,11 @@ var _ = Describe("Create", func() {
 			tests.ResetLog()
 			defer tests.DisplayLog()
 
-			if fixtureForm, err = afix.GetFixtureForm(); err != nil {
+			if fixtureForm, err = ffix.GetFixtureForm(); err != nil {
 				Expect(err).Should(BeNil(), "Not able to load fixture form.")
 			}
 
-			result, err = ask.UpsertForm(tests.Context, db, fixtureForm)
+			result, err = form.Upsert(tests.Context, db, fixtureForm)
 		})
 
 		Context("with validated data", func() {
@@ -70,12 +69,12 @@ var _ = Describe("Update", func() {
 
 	BeforeEach(func() {
 		// get a database from the fixtures
-		db = afix.SetTestDatabase()
+		db = ffix.SetTestDatabase()
 	})
 
 	AfterEach(func() {
 		// empty database
-		afix.TearTestDatabase(db)
+		ffix.TearTestDatabase(db)
 	})
 
 	Describe("a form", func() {
@@ -92,17 +91,17 @@ var _ = Describe("Update", func() {
 			defer tests.DisplayLog()
 
 			// load the fixture form
-			if fixtureForm, err = afix.GetFixtureForm(); err != nil {
+			if fixtureForm, err = ffix.GetFixtureForm(); err != nil {
 				Expect(err).Should(BeNil(), "Not able to load fixture form.")
 			}
 
 			// insert the form into the coral database
-			if _, err = ask.UpsertForm(tests.Context, db, fixtureForm); err != nil {
+			if _, err = form.Upsert(tests.Context, db, fixtureForm); err != nil {
 				Expect(err).Should(BeNil(), "Not able to create fixture form.")
 			}
 
 			fixtureForm.Status = "new"
-			result, err = ask.UpsertForm(tests.Context, db, fixtureForm)
+			result, err = form.Upsert(tests.Context, db, fixtureForm)
 		})
 
 		Context("with validated data", func() {
@@ -116,44 +115,6 @@ var _ = Describe("Update", func() {
 				expectedStatus := "new"
 				Expect(result.Status).Should(Equal(expectedStatus))
 
-			})
-		})
-	})
-
-	Describe("a form submission", func() {
-
-		var (
-			submission *form.Submission
-			errSub     error
-		)
-
-		JustBeforeEach(func() {
-
-			tests.ResetLog()
-			defer tests.DisplayLog()
-
-			// load the fixture form
-			fixtureForm, _ := afix.GetFixtureForm()
-
-			// insert the form into the coral database
-			_, _ = ask.UpsertForm(tests.Context, db, fixtureForm)
-
-			// load the fixture form
-			fixtureFormSubmissionInput, err := afix.GetFixtureFormSubmissionInput()
-			Expect(err).Should(BeNil(), "Not able to load fixture form submission.")
-
-			// insert the form into the coral database
-			submission, errSub = ask.UpsertFormSubmission(tests.Context, db, fixtureFormSubmissionInput)
-		})
-
-		Context("with appropiate context", func() {
-			It("should not give an error", func() {
-				Expect(errSub).Should(BeNil())
-				Expect(submission).ShouldNot(BeNil())
-			})
-			It("should return a submission for its form", func() {
-				expectedFormID := "577c18f4a969c805f7f8c889"
-				Expect(submission.FormID.Hex()).Should(Equal(expectedFormID))
 			})
 		})
 	})

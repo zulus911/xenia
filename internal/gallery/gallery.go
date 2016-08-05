@@ -1,4 +1,4 @@
-package form
+package gallery
 
 import (
 	"fmt"
@@ -6,10 +6,25 @@ import (
 
 	"github.com/ardanlabs/kit/db"
 	"github.com/ardanlabs/kit/log"
+	"github.com/coralproject/xenia/internal/submission"
 
+	"gopkg.in/bluesuncorp/validator.v8"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
+
+//Various Constants
+const (
+	// Collections
+	FormGalleries string = "form_galleries"
+)
+
+// validate is used to perform model field validation.
+var validate *validator.Validate
+
+func init() {
+	validate = validator.New(&validator.Config{TagName: "validate"})
+}
 
 // Gallery implements the Model interface
 type Gallery struct {
@@ -24,10 +39,10 @@ type Gallery struct {
 }
 
 type GalleryAnswer struct {
-	SubmissionID    bson.ObjectId      `json:"submission_id" bson:"submission_id"`
-	AnswerID        string             `json:"answer_id" bson:"answer_id"`
-	Answer          SubmissionAnswer   `json:"answer,omitempty" bson:"answer,omitempty"`                     // not saved to db, hydrated when reading only!
-	IdentityAnswers []SubmissionAnswer `json:"identity_answers,omitempty" bson:"identity_answers,omitempty"` // not saved to db, hydrated when reading only!
+	SubmissionID    bson.ObjectId                 `json:"submission_id" bson:"submission_id"`
+	AnswerID        string                        `json:"answer_id" bson:"answer_id"`
+	Answer          submission.SubmissionAnswer   `json:"answer,omitempty" bson:"answer,omitempty"`                     // not saved to db, hydrated when reading only!
+	IdentityAnswers []submission.SubmissionAnswer `json:"identity_answers,omitempty" bson:"identity_answers,omitempty"` // not saved to db, hydrated when reading only!
 }
 
 // Gallery I am, I am form_gallery
@@ -76,7 +91,7 @@ func Create(context interface{}, db *db.DB, formID string) (*Gallery, error) {
 		return nil, err
 	}
 
-	// THIS CAN BE ACHIEVED IN A STRUCTURED LOG
+	// THIS CAN BE ACHIEVED IN A STRUCTURED LOG? Research Historical record packages
 	// // store the history of it's creation!
 	// hr := behavior.HistoricalRecord{}
 	// hr.Record("Created", fg)

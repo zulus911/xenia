@@ -8,9 +8,24 @@ import (
 	"github.com/ardanlabs/kit/db/mongo"
 	"github.com/ardanlabs/kit/log"
 
+	"gopkg.in/bluesuncorp/validator.v8"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
+
+//Various Constants
+const (
+	// Ask collections
+	Forms           string = "forms"
+	FormSubmissions string = "form_submissions"
+)
+
+// validate is used to perform model field validation.
+var validate *validator.Validate
+
+func init() {
+	validate = validator.New(&validator.Config{TagName: "validate"})
+}
 
 // Form is our main structure for the form builder
 // It implements the interface Model
@@ -67,64 +82,72 @@ func (object Form) Validate() error {
 	return nil
 }
 
-func (object Form) BuildSubmission() (Submission, error) {
-
-	// cook up a new form submission
-	fs := Submission{}
-
-	// Get a new ID for the submission
-	fs.ID = bson.NewObjectId()
-
-	// grab the header info from the form
-	fs.FormID = object.ID
-	fs.Header = object.Header
-	fs.Footer = object.Footer
-
-	// for each widget in each step
-	for _, s := range object.Steps {
-		for _, w := range s.Widgets {
-
-			// make an answer
-			a := SubmissionAnswer{}
-
-			// get the question/title and props for posterity
-			a.WidgetID = w.ID
-			a.Identity = w.Identity
-			a.Question = w.Title
-			a.Props = w.Props
-
-			// and slam them into the answers
-			fs.Answers = append(fs.Answers, a)
-		}
-	}
-
-	// toss that fresh submission back
-	return fs, nil
-}
-
-func (object Form) getSubmissionCountByForm(context interface{}, db *db.DB) (int, error) {
+func (object Form) CountSubmissions(context interface{}, db *db.DB) (int, error) {
 
 	var n int
 	var err error
 
-	funct := func(c *mgo.Collection) error {
-		q := bson.M{"form_id": object.ID}
-		n, err = c.Find(q).Count()
-
+	f := func(c *mgo.Collection) error {
+		n, err = c.Find(bson.M{"form_id": object.ID}).Count()
 		return err
 	}
 
-	if err := db.ExecuteMGO(context, FormSubmissions, funct); err != nil {
+	if err := db.ExecuteMGO(context, FormSubmissions, f); err != nil {
+		log.Error(context, "CountSubmissions", err, "Completed")
 		return 0, err
 	}
 
-	return n, nil
+	return n, err
+}
+
+// calculate stats for Forms
+func (object Form) UpdateStats(context interface{}, db *db.DB) error {
+
+	// do some counting
+	responses, err := object.CountSubmissions(context, db)
+	if err != nil {
+		return err
+	}
+
+	// update the stats subdoc
+
+	s := FormStats{}
+	s.Responses = responses
+
+	f := func(c *mgo.Collection) error {
+		err := c.Update(bson.M{"_id": object.ID}, bson.M{"$set": bson.M{"stats": s}})
+		return err
+	}
+
+	if err := db.ExecuteMGO(context, Forms, f); err != nil {
+		log.Error(context, "updateStats", err, "Completed")
+		return err
+	}
+
+	return nil
+
+}
+
+// Returns a form based on the form_id
+func GetForm(context interface{}, db *db.DB, fID bson.ObjectId) (*Form, error) {
+
+	var f *Form
+
+	funct := func(c *mgo.Collection) error {
+		return c.FindId(fID).One(&f)
+	}
+
+	if err := db.ExecuteMGO(context, Forms, funct); err != nil {
+		return nil, err
+	}
+
+	return f, nil
 }
 
 //=========================================================================================================
 
 // Upsert create or update an existing form
-func UpsertForm(context interface{}, db *db.DB, f *Form) (*Form, error) {
+func Upsert(context interface{}, db *db.DB, f *Form) (*Form, error) {
 
 	// Validate the form that is provided.
 	if err := f.Validate(); err != nil {
@@ -154,16 +177,10 @@ func UpsertForm(context interface{}, db *db.DB, f *Form) (*Form, error) {
 		return nil, err
 	}
 
-	_, err := Create(context, db, f.Id())
-	if err != nil {
-		return f, err
+	// always update form stats to ensure expected stats fields
+	if err := f.UpdateStats(context, db); err != nil {
+		return nil, err
 	}
-
-	// // always update form stats to ensure expected stats fields
-	// err := updateStats(context)
-	// if err != nil {
-	// 	return nil, err
-	// }
 
 	return f, nil
 }

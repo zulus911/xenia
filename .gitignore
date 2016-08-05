@@ -10,6 +10,9 @@ _test
 # Architecture specific extensions/prefixes
 *.[568vq]
 [568vq].out
+.DS_Store
+.tags
+.tags1
 
 *.cgo1.go
 *.cgo2.c

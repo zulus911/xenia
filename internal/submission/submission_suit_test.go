@@ -1,4 +1,4 @@
-package ask_test
+package submission_test
 
 import (
 	"github.com/ardanlabs/kit/cfg"
