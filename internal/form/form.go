@@ -67,10 +67,64 @@ func (object Form) Validate() error {
 	return nil
 }
 
+func (object Form) BuildSubmission() (Submission, error) {
+
+	// cook up a new form submission
+	fs := Submission{}
+
+	// Get a new ID for the submission
+	fs.ID = bson.NewObjectId()
+
+	// grab the header info from the form
+	fs.FormID = object.ID
+	fs.Header = object.Header
+	fs.Footer = object.Footer
+
+	// for each widget in each step
+	for _, s := range object.Steps {
+		for _, w := range s.Widgets {
+
+			// make an answer
+			a := SubmissionAnswer{}
+
+			// get the question/title and props for posterity
+			a.WidgetID = w.ID
+			a.Identity = w.Identity
+			a.Question = w.Title
+			a.Props = w.Props
+
+			// and slam them into the answers
+			fs.Answers = append(fs.Answers, a)
+		}
+	}
+
+	// toss that fresh submission back
+	return fs, nil
+}
+
+func (object Form) getSubmissionCountByForm(context interface{}, db *db.DB) (int, error) {
+
+	var n int
+	var err error
+
+	funct := func(c *mgo.Collection) error {
+		q := bson.M{"form_id": object.ID}
+		n, err = c.Find(q).Count()
+
+		return err
+	}
+
+	if err := db.ExecuteMGO(context, FormSubmissions, funct); err != nil {
+		return 0, err
+	}
+
+	return n, nil
+}
+
 //=========================================================================================================
 
 // Upsert create or update an existing form
-func Upsert(context interface{}, db *db.DB, f *Form) (*Form, error) {
+func UpsertForm(context interface{}, db *db.DB, f *Form) (*Form, error) {
 
 	// Validate the form that is provided.
 	if err := f.Validate(); err != nil {
@@ -83,9 +137,11 @@ func Upsert(context interface{}, db *db.DB, f *Form) (*Form, error) {
 		var rf *Form
 		// Look for the form in the db amd update datetime fields
 		if err := c.FindId(f.ID).One(&rf); err != nil {
+			//f.ID = bson.NewObjectId()
 			f.DateCreated = time.Now()
 			return c.Insert(f)
 		}
+		f.DateUpdated = time.Now()
 
 		// If the form already exists then update it
 		q := bson.M{"_id": f.ID}
@@ -98,48 +154,16 @@ func Upsert(context interface{}, db *db.DB, f *Form) (*Form, error) {
 		return nil, err
 	}
 
-	return f, nil
-
-	//
-	// // create
-	// if input.ID == "" {
-	//
-	// 	// append a fresh id to the input obj
-	// 	input.ID = bson.NewObjectId()
-	//
-	// 	// and insert it
-	// 	if err := c.MDB.DB.C(model.Forms).Insert(input); err != nil {
-	// 		return err
-	// 	}
-
-	// store the id into the context as a hex
-	// //  to match up with what we expect from web params
-	// c.SetValue("id", input.ID.Hex())
-	//
-	// // we're auto-creating galleries for forms
-	// //  so create a context and do so
-	// fc := web.NewContext(nil, nil)
-	// fc := app.
-	// defer fc.Close()
-	// fc.SetValue("form_id", input.ID.Hex())
-	// CreateFormGallery(fc)
-
-	// } else { // do the update
-	//
-	// 	// store the existing id into the context as a hex
-	// 	//  to match up with what we expect from web params
-	// 	context.SetValue("id", input.ID.Hex())
-	//
-	// 	if _, err := c.MDB.DB.C(model.Forms).UpsertId(input.ID, input); err != nil {
-	//
-	// 		return nil, err
-	// 	}
-
-	//}
+	_, err := Create(context, db, f.Id())
+	if err != nil {
+		return f, err
+	}
 
 	// // always update form stats to ensure expected stats fields
 	// err := updateStats(context)
 	// if err != nil {
 	// 	return nil, err
 	// }
+
+	return f, nil
 }
